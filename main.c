@@ -10,8 +10,6 @@
 #define COLOR_GREEN "\x1b[32m"
 #define COLOR_RESET "\x1b[0m"
 
-//printf the errors with the color red :D
-//ask the user if they want to exit the game in every function
 typedef struct Ship
 {
     int length, width;
@@ -45,29 +43,33 @@ Ship ships[30];
 User users[2];
 
 //prototypes
-void settings(); //bonus
+void settings(); 
 void init_ship_info();
 char **init_map();
 bool change_ships();
 char *username();
 int search(char name[50]);
 void battleWithFriend(char **map1, char **map2, char **map_enemy1, char **map_enemy2, node *head1, node *head2);
+//battle with bot needs bug fixes
 void battleWithBot(char **map1, char **map2, char **map_enemy1, char **map_enemy2, node *head1, node *head2);
 char **complete_explosion(char **map, char **map_enemy, node *curr_ship);
 void missile_attack(node **head, char ***map, char ***map_enemy, int *coins);
+char **missile_attack_new(node **head, char ***map, char **map_enemy, int *coins);
 node *createNode(int len, int width);
 node *putships_manual(char ***map);
 node *putships_auto(char ***map);
 char **update_map(int x_head, int y_head, int x_tail, int y_tail, char **map);
 bool check_map(int x_head, int y_head, int x_tail, int y_tail, char **map);
 void displayMap(char **map);
-void scoreboard(); //print the sorted list of each user's coins
-//void savegame(int *coin1, int *coin2);   //i have no idea about this, maybe a .bin file or sth
+void scoreboard(); 
 void savescores();
+void savegame(char **map1, char **map2, char **map_enemy1, char **map_enemy2, node *head1, node *head2, bool bot); 
+void loadSavedGame(char **map1, char **map2, char **map_enemy1, char **map_enemy2, node *head1, node *head2);
 void printlist(node *head);
 
 int main()
 {
+    /*
     char **map1 = (char **)malloc(maprow * sizeof(char *));
     for (int i = 0; i < maprow; i++)
         map1[i] = (char *)malloc(mapcol * sizeof(char));
@@ -80,7 +82,8 @@ int main()
     char **map_enemy2 = (char **)malloc(maprow * sizeof(char *));
     for (int i = 0; i < maprow; i++)
         map_enemy2[i] = (char *)malloc(mapcol * sizeof(char));
-
+    */
+    char **map1, **map2, **map_enemy1, **map_enemy2;
     node *head1, *head2;
 
     init_ship_info();
@@ -102,6 +105,9 @@ int main()
             strcpy(users[1].name, username());
             users[1].coins = search(users[1].name);
             system("cls");
+            users[0].tmp_coins = 0; users[1].tmp_coins = 0;
+            users[0].missile = 0; 
+            users[1].missile = 0; 
             map1 = init_map();
             map2 = init_map();
             map_enemy1 = init_map();
@@ -158,6 +164,9 @@ int main()
             strcpy(users[0].name, username());
             users[0].coins = search(users[0].name);
             system("cls");
+            users[0].tmp_coins = 0; users[1].tmp_coins = 0;
+            users[0].missile = 0; // --> human
+            users[1].missile = 0; // --> bot
             map1 = init_map();
             map2 = init_map();
             map_enemy1 = init_map();
@@ -189,6 +198,11 @@ int main()
             battleWithBot(map1, map2, map_enemy1, map_enemy2, head1, head2);
             break;
         case 3:
+            map1 = init_map();
+            map2 = init_map();
+            map_enemy1 = init_map();
+            map_enemy2 = init_map();
+            loadSavedGame(map1, map2, map_enemy1, map_enemy2, head1, head2);
             break;
         case 4:
             break;
@@ -209,24 +223,25 @@ int main()
         }
     } while (choice != 7);
 
-    printf(COLOR_GREEN "Bye :)");
+    printf("Bye :)");
     return 0;
 }
 
 void scoreboard()
 {
     //get data of all the users
-    //User *all = (User*)malloc(sizeof(User));
-    User all[500];
+    User *all = (User*)malloc(sizeof(User));
     FILE *fp = fopen("users.txt", "r");
-    int i, j, num;
+    int i, j, num, tmpscore;
+    char tmp[50];
     for (i = 0; !feof(fp); i++)
     {
-        //all = (User*)realloc(all, (i + 1) * sizeof(User));
+        all = (User*)realloc(all, (i + 1) * sizeof(User));
         fscanf(fp, "%s %s", &all[i].name, &all[i].str_coins);
         all[i].coins = atoi(all[i].str_coins);
     }
-    //sort the users with respect to their score
+    fclose(fp);
+    //sort the users according to their score
     num = i;
     for (i = 0; i < num - 1; i++)
     {
@@ -234,8 +249,6 @@ void scoreboard()
         {
             if (all[j].coins < all[j + 1].coins)
             {
-                int tmpscore;
-                char *tmp;
                 strcpy(tmp, all[j].name);
                 tmpscore = all[j].coins;
                 strcpy(all[j].name, all[j + 1].name);
@@ -247,9 +260,7 @@ void scoreboard()
     }
     //print the sorted list
     for (i = 0; i < num; i++)
-    {
         printf("\t%s %d\n", all[i].name, all[i].coins);
-    }
 }
 
 void settings()
@@ -401,13 +412,13 @@ char *username()
     {
         printf("\tEnter a username:");
         gets(name);
-        while (search(name) != 0)
+        while (search(name) != -1)
         {
             printf("\t%s already exists, try another one:", name);
             gets(name);
         }
         FILE *fp = fopen("users.txt", "a");
-        fprintf(fp, "%s 0\n", name);
+        fprintf(fp, "\n%s 0", name);
         fclose(fp);
     }
     else if (choice == 2)
@@ -422,7 +433,7 @@ char *username()
         }
         printf("\tEnter the username you want to choose\n");
         gets(name);
-        while (search(name) == 0)
+        while (search(name) == -1)
         {
             printf("\t%s does not exist! Try again:", name);
             gets(name);
@@ -446,7 +457,7 @@ int search(char name[50])
         }
     }
     fclose(fpin);
-    return 0;
+    return -1;
 }
 
 node *createNode(int len, int width)
@@ -747,7 +758,7 @@ void battleWithFriend(char **map1, char **map2, char **map_enemy1, char **map_en
     int x, y, choice;
     node *curr, *prev;
     bool bonus;
-    int coins1 = 0, coins2 = 0;
+    int coins1 = users[0].tmp_coins, coins2 = users[1].tmp_coins;
 
     while (head1 && head2)
     {
@@ -756,11 +767,10 @@ void battleWithFriend(char **map1, char **map2, char **map_enemy1, char **map_en
         bonus = true;
         Sleep(1000); system("cls");
         printf("\t%s\n", users[0].name);
-        printf("\t1.Attack\n\t2.Missile attack\n\t3.Save and quit\n");
+        printf("\t1.Attack\n\t2.Missile attack\n\t3.Save the game\n");
         scanf("%d", &choice);
         if (choice == 1)
         {
-            //displayMap(map1);
             while (bonus)
             {
                 if (head1 == NULL)
@@ -830,7 +840,10 @@ void battleWithFriend(char **map1, char **map2, char **map_enemy1, char **map_en
                 coins1 -= 100;        //pay 100 coins
                 displayMap(map1);
                 displayMap(map_enemy1);
-                missile_attack(&head2, &map2, &map_enemy1, &coins1);
+                map_enemy2 = missile_attack_new(&head1, &map1, map_enemy2, &coins2);
+                Sleep(1000); system("cls");
+                displayMap(map1);
+                displayMap(map_enemy1);
             }
             else if (coins1 < 100)
                 printf("\tYou don't have enough coins!\n");
@@ -838,14 +851,12 @@ void battleWithFriend(char **map1, char **map2, char **map_enemy1, char **map_en
                 printf("\tYou can't perform missile attack anymore :(\n");
         }
         else if (choice == 3)
-        {
-            //savegame(&coins1, &coins2);
-        }
+            savegame(map1, map2, map_enemy1, map_enemy2, head1, head2, false);
 
         bonus = true;
         Sleep(1000); system("cls");
         printf("\t%s\n", users[1].name);
-        printf("\t1.Attack\n\t2.Missile attack\n\t3.Save and quit\n");
+        printf("\t1.Attack\n\t2.Missile attack\n\t3.Save the game\n");
         scanf("%d", &choice);
         if (choice == 1)
         {
@@ -919,7 +930,10 @@ void battleWithFriend(char **map1, char **map2, char **map_enemy1, char **map_en
                 coins2 -= 100;        //pay 100 coins
                 displayMap(map2);
                 displayMap(map_enemy2);
-                missile_attack(&head1, &map1, &map_enemy2, &coins2);
+                map_enemy2 = missile_attack_new(&head1, &map1, map_enemy2, &coins2);
+                Sleep(1000); system("cls");
+                displayMap(map2);
+                displayMap(map_enemy2);
             }
             else if (coins2 < 100)
                 printf("\tYou don't have enough coins!\n");
@@ -927,12 +941,7 @@ void battleWithFriend(char **map1, char **map2, char **map_enemy1, char **map_en
                 printf("\tYou can't perform missile attack anymore :(\n");
         }
         else if (choice == 3)
-        {
-            users[0].tmp_coins = coins1;
-            users[1].tmp_coins = coins2;
-        }
-        else
-            printf("\tInvalid input!\n");
+            savegame(map1, map2, map_enemy1, map_enemy2, head1, head2, false);
     }
     //end of the game
     if (head1 == NULL && head2 != NULL)
@@ -964,18 +973,17 @@ void battleWithBot(char **map1, char **map2, char **map_enemy1, char **map_enemy
     scanf("%d", &difficulty);
     getchar();
     system("pause");
-    //missile = 0;
-    users[0].missile = 0; // --> human
-    users[1].missile = 0; // --> bot
     int x, y;
     node *curr, *prev;
     bool bonus;
-    int coins1 = 0, coins2 = 0;
+    int coins1 = users[0].tmp_coins, coins2 = users[1].tmp_coins;
     while (head1 && head2)
     {
         bonus = true;
+        Sleep(1000);
+        system("cls");
         printf("\t%s\n", users[0].name);
-        printf("\t1.Attack\n\t2.Missile attack\n\t3.Save and quit\n");
+        printf("\t1.Attack\n\t2.Missile attack\n\t3.Save the game\n");
         scanf("%d", &choice);
         if (choice == 1)
         {
@@ -1041,71 +1049,59 @@ void battleWithBot(char **map1, char **map2, char **map_enemy1, char **map_enemy
             }
         }
         else if (choice == 2)
-            ;
-        else if (choice == 3)
-            ;
+        {
+            if (coins1 >= 100 && users[0].missile != 0)
+            {
+                users[0].missile = 0; //use the 1 chance to launch a missile attack
+                coins1 -= 100;        //pay 100 coins
+                displayMap(map1);
+                displayMap(map_enemy1);
+                missile_attack(&head2, &map2, &map_enemy1, &coins1);
+            }
+            else if (coins1 < 100)
+                printf("\tYou don't have enough coins!\n");
+            else if (coins1 >= 100 && users[0].missile == 0)
+                printf("\tYou can't perform missile attack anymore :(\n");
+        }
+        else if (choice == 3) 
+            savegame(map1, map2, map_enemy1, map_enemy2, head1, head2, true);
         //bot's turn
         bonus = true;
-        if (coins2 >= 100)
+        x = rand() % 10;
+        y = rand() % 10;
+        while (bonus)
         {
-            choice = rand() % 2 + 1;
-        }
-        else
-            choice = 1;
-
-        if (choice == 1)
-        {
-            x = rand() % 10;
-            y = rand() % 10;
-            while (bonus)
-            {
-                if (head1 == NULL)
-                    break;
-                system("cls");
-                if (map1[y][x] == 'e' || map1[y][x] == 'x')
-                {                 //the target has already been hit
-                    bonus = true; //the bot can try again so it stays in the loop
-                    x = rand() % mapcol;
-                    y = rand() % maprow;
-                    continue;
+            if (head1 == NULL)
+                break;
+            system("cls");
+            if (map1[y][x] == 'e' || map1[y][x] == 'x')
+            {                 //the target has already been hit
+                bonus = true; //the bot can try again so it stays in the loop
+                x = rand() % mapcol;
+                y = rand() % maprow;
+                continue;
+            }
+            else if (map_enemy2[y][x] == '.' && (map1[y][x] == '.' || map1[y][x] == 'w'))
+            { //the target is the ocean
+                map1[y][x] = 'x';
+                map_enemy2[y][x] = 'w';
+                bonus = false;
+            }
+            else if (map1[y][x] == 's')
+            { //the target is a part of a ship
+                //find the target ship in the linked list
+                curr = head1;
+                while (x < curr->head.x || x > curr->tail.x || y < curr->head.y || y > curr->tail.y)
+                {
+                    prev = curr;
+                    curr = curr->next;
                 }
-                else if (map_enemy2[y][x] == '.' && (map1[y][x] == '.' || map1[y][x] == 'w'))
-                { //the target is the ocean
-                    map1[y][x] = 'x';
-                    map_enemy2[y][x] = 'w';
-                    bonus = false;
-                }
-                else if (map1[y][x] == 's')
-                { //the target is a part of a ship
-                    //find the target ship in the linked list
-                    curr = head1;
-                    while (x < curr->head.x || x > curr->tail.x || y < curr->head.y || y > curr->tail.y)
-                    {
-                        prev = curr;
-                        curr = curr->next;
-                    }
-                    if (curr->hit != curr->info.length * curr->info.width - 1)
-                    { //the ship is not completely exploded
-                        map1[y][x] = 'e';
-                        map_enemy2[y][x] = 'e';
-                        coins2++;
-                        curr->hit++;
-                    }
-                    else
-                    {
-                        map_enemy2 = complete_explosion(map1, map_enemy2, curr);
-                        map1[y][x] = 'e';
-                        //unlink the ship from the linked list
-                        if (curr == head1)
-                            head1 = head1->next;
-                        else
-                            prev->next = curr->next;
-                        int destroyed_ship_area = curr->info.length * curr->info.width;
-                        int score = 5 * largest_ship_area / destroyed_ship_area;
-                        coins2 += score + 1;
-                        if (head1 == NULL)
-                            break;
-                    }
+                if (curr->hit != curr->info.length * curr->info.width - 1)
+                { //the ship is not completely exploded
+                    map1[y][x] = 'e';
+                    map_enemy2[y][x] = 'e';
+                    coins2++;
+                    curr->hit++;
                     //generate another x,y coordinates as a bonus
                     if (difficulty == 1)
                     {
@@ -1146,13 +1142,29 @@ void battleWithBot(char **map1, char **map2, char **map_enemy1, char **map_enemy
                         }
                     }
                 }
-                displayMap(map1);
-                displayMap(map_enemy1); //show the result
-                Sleep(2000);
+                else
+                {
+                    map_enemy2 = complete_explosion(map1, map_enemy2, curr);
+                    map1[y][x] = 'e';
+                    //unlink the ship from the linked list
+                    if (curr == head1)
+                        head1 = head1->next;
+                    else
+                        prev->next = curr->next;
+                    int destroyed_ship_area = curr->info.length * curr->info.width;
+                    int score = 5 * largest_ship_area / destroyed_ship_area;
+                    coins2 += score + 1;
+                    if (head1 == NULL)
+                        break;
+                    //next target as a bonus
+                    x = rand() % mapcol;
+                    y = rand() % maprow;
+                }
             }
+            displayMap(map1);
+            displayMap(map_enemy1); //show the result
+            Sleep(2000);
         }
-        else
-            ; //missile
     }
     //end of the game
     if (head1 == NULL && head2 != NULL)
@@ -1180,9 +1192,8 @@ void missile_attack(node **head, char ***map, char ***map_enemy, int *coins)
     int point;
     printf("\tEnter the direction in which you like to shoot:\n");
     printf("\tEnter V for vertical or H for horizontal\n");
-    scanf("%c", &direction);
-    printf("Enter the column/row in which you like to shoot:\n");
-    scanf("%d", &point);
+    printf("\tEnter the column/row in which you like to shoot:\n");
+    scanf("%c%d", &direction, &point); 
     getchar();
 
     int x, y;
@@ -1257,6 +1268,93 @@ void missile_attack(node **head, char ***map, char ***map_enemy, int *coins)
     }
 }
 
+char** missile_attack_new(node **head, char ***map, char **map_enemy, int *coins)
+{
+    char **new_map = *map;
+    //get data
+    char direction;
+    int point;
+    printf("\tEnter the direction in which you like to shoot:\n");
+    printf("\tEnter V for vertical or H for horizontal\n");
+    printf("\tEnter the column/row in which you like to shoot:\n");
+    printf("\tExample:  V5\n");
+    scanf("%c%d", &direction, &point);
+    getchar();
+
+    int x, y;
+    if (direction == 'V' || direction == 'v')
+    {
+        for (x = point, y = 0; new_map[y][x] == 'w'; y++)
+            map_enemy[y][x] = 'w';
+        if (new_map[y][x] == 's' || new_map[y][x] == 'e')
+        {
+            node *curr = *head, *prev;
+            while (x < curr->head.x || x > curr->tail.x || y < curr->head.y || y > curr->tail.y)
+            {
+                prev = curr;
+                curr = curr->next;
+            }
+            if (curr->hit == curr->info.length * curr->info.width - 1)
+            { //if the target point is the last point of an exploded ship
+                printf("Complete explosion!\n");
+                map_enemy = complete_explosion(new_map, map_enemy, curr);
+                //unlink the current ship from the linked list
+                if (curr == *head)
+                    *head = (*head)->next;
+                else
+                    prev->next = curr->next;
+                int destroyed_ship_area = curr->info.length * curr->info.width;
+                int score = 5 * largest_ship_area / destroyed_ship_area;
+                *coins += score;
+            }
+            else
+            {
+                new_map[y][x] = 'e';
+                map_enemy[y][x] = 'e';
+                *coins++;
+                curr->hit++;
+            }
+        }
+    }
+    else if (direction == 'H' || direction == 'h')
+    { //horizontal
+        for (y = point, x = 0; *map[y][x] == 'w'; x++)
+            map_enemy[y][x] = 'w';
+        if (new_map[y][x] == 's' || new_map[y][x] == 'e')
+        {
+            //check if you have the right to delete the target ship from the linked list
+            node *curr = *head, *prev;
+            while (x < curr->head.x || x > curr->tail.x || y < curr->head.y || y > curr->tail.y)
+            {
+                prev = curr;
+                curr = curr->next;
+            }
+            if (curr->hit == curr->info.length * curr->info.width - 1)
+            { //if the target point is the last point of an exploded ship
+                printf("Complete explosion!\n");
+                map_enemy = complete_explosion(new_map, map_enemy, curr);
+                //unlink the current ship from the linked list
+                if (curr == *head)
+                    *head = (*head)->next;
+                else
+                    prev->next = curr->next;
+                int destroyed_ship_area = curr->info.length * curr->info.width;
+                int score = 5 * largest_ship_area / destroyed_ship_area;
+                *coins += score;
+            }
+            else
+            {
+                new_map[y][x] = 'e';
+                map_enemy[y][x] = 'e';
+                *coins++;
+                curr->hit++;
+            }
+        }
+    }
+    *map = new_map;
+    return map_enemy;
+}
+
 void savescores()
 {
     //better way is to realloc "all" everytime u wanna read smth into it:)
@@ -1281,17 +1379,157 @@ void savescores()
     fclose(fpout);
 }
 
-void savegame(char **map1, char **enemy_map1, char **map2, char **enemy_map2, node *head1, node *head2, bool bot)
+void savegame(char **map1, char **map2, char **map_enemy1, char **map_enemy2, node *head1, node *head2, bool bot)
 {
-    char mode[10]; //friend or bot
-    /*
-    char name[30];
-    printf("\tChoose a name for your game\n\tThe game will be saved with the name you enter\n");
-    while (1)
+    node *tmp;
+    int mode, i;
+    if (bot) mode = 1;
+    else mode  = 0;
+    char title[50];
+    FILE *fp;
+    printf("Choose a title for the game:\n");
+    printf("NOTE: if the title already exists, the saved game with that title will be lost!\n");
+    scanf("%s", title);
+    strcat(title, ".bin");
+
+    fp = fopen(title, "wb"); 
+    fwrite(&mode, sizeof(int), 1, fp);
+    fwrite(&maprow, sizeof(int), 1, fp);
+    fwrite(&mapcol, sizeof(int), 1, fp);
+    fwrite(&numOfTotalShips, sizeof(int), 1, fp);
+    fwrite(&largest_ship_area, sizeof(int), 1, fp);
+    //first user's info
+    fwrite(&users[0].name, sizeof(users[0].name), 1, fp);
+    fwrite("\n", sizeof(char), 1, fp);
+    fwrite(&users[0].tmp_coins, sizeof(int), 1, fp);
+    fwrite(&users[0].missile, sizeof(int), 1, fp);
+    for (i = 0; i < maprow; i++)
+        fwrite(map1[i], mapcol, 1, fp);
+    for (i = 0; i < maprow; i++)
+        fwrite(map_enemy1[i], mapcol, 1, fp);
+    tmp = head1;
+    while (tmp)
     {
-        gets(name);
-        FILE *fp = fopen("game.bin", "rb");
+        fwrite(&tmp->info.length, sizeof(int), 1, fp);
+        fwrite(&tmp->info.width, sizeof(int), 1, fp);
+        fwrite(&tmp->head.x, sizeof(int), 1, fp);
+        fwrite(&tmp->head.y, sizeof(int), 1, fp);
+        fwrite(&tmp->tail.x, sizeof(int), 1, fp);
+        fwrite(&tmp->tail.y, sizeof(int), 1, fp);
+        fwrite(&tmp->hit, sizeof(int), 1, fp);
+        tmp = tmp->next;
     }
-    */
+    //second user's or bot's info
+    if (!bot) {
+        fwrite(&users[1].name, sizeof(users[1].name), 1, fp);
+    }
+    fwrite("\n", sizeof(char), 1, fp);
+    fwrite(&users[1].tmp_coins, sizeof(int), 1, fp);
+    fwrite(&users[1].missile, sizeof(int), 1, fp);
+    for (i = 0; i < maprow; i++)
+        fwrite(map2[i], mapcol, 1, fp);
+    for (i = 0; i < maprow; i++)
+        fwrite(map_enemy2[i], mapcol, 1, fp);
+    tmp = head2;
+    while (tmp)
+    {
+        fwrite(&tmp->info.length, sizeof(int), 1, fp);
+        fwrite(&tmp->info.width, sizeof(int), 1, fp);
+        fwrite(&tmp->head.x, sizeof(int), 1, fp);
+        fwrite(&tmp->head.y, sizeof(int), 1, fp);
+        fwrite(&tmp->tail.x, sizeof(int), 1, fp);
+        fwrite(&tmp->tail.y, sizeof(int), 1, fp);
+        fwrite(&tmp->hit, sizeof(int), 1, fp);
+        tmp = tmp->next;
+    }
+    fclose(fp);
 }
-void loadSavedGame ();
+void loadSavedGame (char **map1, char **map2, char **map_enemy1, char **map_enemy2, node *head1, node *head2)
+{
+    int mode, i, len, width;
+    char title[50], c;
+    node *tmp, *new;
+    printf("Enter the title of the game:\n");
+    scanf("%s", title);
+    strcat(title, ".bin");
+    FILE *fp = fopen(title, "rb");
+    if (fp == NULL)
+    {
+        printf("There's no game saved with that title!\n");
+        return;
+    }
+    fread(&mode, sizeof(int), 1, fp);
+    fread(&maprow, sizeof(int), 1, fp);
+    fread(&mapcol, sizeof(int), 1, fp);
+    fread(&numOfTotalShips, sizeof(int), 1, fp);
+    fread(&largest_ship_area, sizeof(int), 1, fp);
+    //first user's info
+    fread(&users[0].name, 50 * sizeof(char), 1, fp);
+    fread(&c, sizeof(char), 1, fp);
+    fread(&users[0].tmp_coins, sizeof(int), 1, fp);
+    fread(&users[0].missile, sizeof(int), 1, fp);
+    for (i = 0; i < maprow; i++)
+        fread(map1[i], mapcol, 1, fp);
+    for (i = 0; i < maprow; i++)
+        fread(map_enemy1[i], mapcol, 1, fp);
+    
+    fread(&len, sizeof(int), 1, fp);
+    fread(&width, sizeof(int), 1, fp);
+    head1 = createNode(len, width);
+    fread(&head1->head.x, sizeof(int), 1, fp);
+    fread(&head1->head.y, sizeof(int), 1, fp);
+    fread(&head1->tail.x, sizeof(int), 1, fp);
+    fread(&head1->tail.y, sizeof(int), 1, fp);
+    fread(&head1->hit, sizeof(int), 1, fp);
+    tmp = head1;
+    for (i = 1; i < numOfTotalShips; i++)
+    {
+        fread(&len, sizeof(int), 1, fp);
+        fread(&width, sizeof(int), 1, fp);
+        new = createNode(len, width);
+        fread(&new->head.x, sizeof(int), 1, fp);
+        fread(&new->head.y, sizeof(int), 1, fp);
+        fread(&new->tail.x, sizeof(int), 1, fp);
+        fread(&new->tail.y, sizeof(int), 1, fp);
+        fread(&new->hit, sizeof(int), 1, fp);
+        tmp->next = new;
+        tmp = tmp->next;
+    }
+    //next user
+    if (mode == 0) {
+        fread(&users[1].name, 50 * sizeof(char), 1, fp);
+    }
+    fread(&c, sizeof(char), 1, fp);
+    fread(&users[1].tmp_coins, sizeof(int), 1, fp);
+    fread(&users[1].missile, sizeof(int), 1, fp);
+    for (i = 0; i < maprow; i++)
+        fread(map2[i], mapcol, 1, fp);
+    for (i = 0; i < maprow; i++)
+        fread(map_enemy2[i], mapcol, 1, fp);
+    
+    fread(&len, sizeof(int), 1, fp);
+    fread(&width, sizeof(int), 1, fp);
+    head2 = createNode(len, width);
+    fread(&head2->head.x, sizeof(int), 1, fp);
+    fread(&head2->head.y, sizeof(int), 1, fp);
+    fread(&head2->tail.x, sizeof(int), 1, fp);
+    fread(&head2->tail.y, sizeof(int), 1, fp);
+    fread(&head2->hit, sizeof(int), 1, fp);
+    tmp = head2;
+    while (!feof(fp))
+    {
+        fread(&len, sizeof(int), 1, fp);
+        fread(&width, sizeof(int), 1, fp);
+        new = createNode(len, width);
+        fread(&new->head.x, sizeof(int), 1, fp);
+        fread(&new->head.y, sizeof(int), 1, fp);
+        fread(&new->tail.x, sizeof(int), 1, fp);
+        fread(&new->tail.y, sizeof(int), 1, fp);
+        fread(&new->hit, sizeof(int), 1, fp);
+        tmp->next = new;
+        tmp = tmp->next;
+    }
+    fclose(fp);
+    if (mode == 0) battleWithFriend(map1, map2, map_enemy1, map_enemy2, head1, head2);
+    else battleWithBot(map1, map2, map_enemy1, map_enemy2, head1, head2);
+}
