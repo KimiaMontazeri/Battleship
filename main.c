@@ -8,6 +8,7 @@
 #define COLOR_YELLOW "\x1b[33m"
 #define COLOR_CYAN "\x1b[36m"
 #define COLOR_GREEN "\x1b[32m"
+#define COLOR_GRAY "\x1b[90m"
 #define COLOR_RESET "\x1b[0m"
 
 typedef struct Ship
@@ -41,8 +42,10 @@ int maprow = 10, mapcol = 10;
 int numOfTotalShips = 10, largest_ship_area = 5;
 Ship ships[30];
 User users[2];
+Playback *playback;
 
 //prototypes
+void welcome();
 void settings(); 
 void init_ship_info();
 char **init_map();
@@ -50,11 +53,9 @@ bool change_ships();
 char *username();
 int search(char name[50]);
 void battleWithFriend(char **map1, char **map2, char **map_enemy1, char **map_enemy2, node *head1, node *head2);
-//battle with bot needs bug fixes
 void battleWithBot(char **map1, char **map2, char **map_enemy1, char **map_enemy2, node *head1, node *head2);
 char **complete_explosion(char **map, char **map_enemy, node *curr_ship);
-void missile_attack(node **head, char ***map, char ***map_enemy, int *coins);
-char **missile_attack_new(node **head, char ***map, char **map_enemy, int *coins);
+char **missile_attack(node **head, char ***map, char **map_enemy, int *coins);
 node *createNode(int len, int width);
 node *putships_manual(char ***map);
 node *putships_auto(char ***map);
@@ -65,32 +66,18 @@ void scoreboard();
 void savescores();
 void savegame(char **map1, char **map2, char **map_enemy1, char **map_enemy2, node *head1, node *head2, bool bot); 
 void loadSavedGame(char **map1, char **map2, char **map_enemy1, char **map_enemy2, node *head1, node *head2);
-void printlist(node *head);
+void review();
 
 int main()
 {
-    /*
-    char **map1 = (char **)malloc(maprow * sizeof(char *));
-    for (int i = 0; i < maprow; i++)
-        map1[i] = (char *)malloc(mapcol * sizeof(char));
-    char **map2 = (char **)malloc(maprow * sizeof(char *));
-    for (int i = 0; i < maprow; i++)
-        map2[i] = (char *)malloc(mapcol * sizeof(char));
-    char **map_enemy1 = (char **)malloc(maprow * sizeof(char *));
-    for (int i = 0; i < maprow; i++)
-        map_enemy1[i] = (char *)malloc(mapcol * sizeof(char));
-    char **map_enemy2 = (char **)malloc(maprow * sizeof(char *));
-    for (int i = 0; i < maprow; i++)
-        map_enemy2[i] = (char *)malloc(mapcol * sizeof(char));
-    */
     char **map1, **map2, **map_enemy1, **map_enemy2;
     node *head1, *head2;
-
     init_ship_info();
     int choice, n, i;
+    welcome();
     do
     {
-        printf("\t1.Play with a friend\n\t2.Play with bot\n\t3.Load last game\n\t4.Playback last game\n\t5.Settings\n\t6.Scoreboard\n\t7.Exit\n");
+        printf("\t1.Play with a friend\n\t2.Play with bot\n\t3.Load last game\n\t4.Settings\n\t5.Scoreboard\n\t6.Exit\n");
         scanf("%d", &choice);
         getchar();
         system("cls");
@@ -205,30 +192,38 @@ int main()
             loadSavedGame(map1, map2, map_enemy1, map_enemy2, head1, head2);
             break;
         case 4:
+            settings();
+            system("pause");
+            system("cls");
             break;
         case 5:
-            settings();
-            system("PAUSE");
+            scoreboard();
+            system("pause");
             system("cls");
             break;
         case 6:
-            scoreboard();
-            system("pause");
-            break;
-        case 7:
             break;
         default:
-            printf("\tWrong input!\n");
+            printf(COLOR_RED "\tWrong input!\n" COLOR_RESET);
             break;
         }
-    } while (choice != 7);
+    } while (choice != 6);
 
     printf("Bye :)");
     return 0;
 }
 
+void welcome ()
+{
+    printf(COLOR_CYAN "\tWelcome to Battle Ship\n");
+    printf("\tEach player should try to hit the enemy's ship until victory\n" COLOR_RESET);
+    Sleep(2000);
+    system("cls");
+}
+
 void scoreboard()
 {
+    printf(COLOR_YELLOW "\tSCOREBOARD\n\n" COLOR_RESET);
     //get data of all the users
     User *all = (User*)malloc(sizeof(User));
     FILE *fp = fopen("users.txt", "r");
@@ -265,8 +260,9 @@ void scoreboard()
 
 void settings()
 {
+    printf(COLOR_YELLOW "\tSETTINGS\n" COLOR_RESET);
     int choice, i, area = 0;
-    printf("\t1.Ships\n\t2.Map size\n\t3.Theme\n");
+    printf("\n\t1.Ships\n\t2.Map size\n");
     scanf("%d", &choice);
     switch (choice)
     {
@@ -276,7 +272,7 @@ void settings()
         getchar();
         while (!change_ships())
         {
-            printf("\tTry again\n");
+            printf(COLOR_RED "\tTry again\n" COLOR_RESET);
             printf("\tEnter the number of ships you would like to have:");
             scanf("%d", &numOfTotalShips);
             getchar();
@@ -300,14 +296,13 @@ void settings()
             scanf("%d", &mapcol);
             getchar();
             if (mapcol * maprow < area)
-                printf("\tMap size is too small! Choose another size\n");
+                printf(COLOR_RED "\tMap size is too small! Choose another size\n" COLOR_RED);
             else
                 break;
         }
         break;
-    case 3:
     default:
-        printf("\tWrong input!\n");
+        printf(COLOR_RED "\tWrong input!\n" COLOR_RESET);
         break;
     }
 }
@@ -356,7 +351,7 @@ bool change_ships()
 
     for (i = 0; i < numOfTotalShips;)
     {
-        printf("\tSHIP %d\n", i + 1);
+        printf("\n\tSHIP %d\n", i + 1);
         printf("\tLength:");
         scanf("%d", &len);
         printf("\tWidth:");
@@ -377,7 +372,7 @@ bool change_ships()
         }
         if (area > maprow * mapcol)
         {
-            printf("\tCannot locate the ships in the map!\n");
+            printf(COLOR_RED "\tCannot locate the ships in the map!\n" COLOR_RESET);
             return false;
         }
         for (count = 0; count < num; count++, i++)
@@ -414,7 +409,7 @@ char *username()
         gets(name);
         while (search(name) != -1)
         {
-            printf("\t%s already exists, try another one:", name);
+            printf(COLOR_RED "\t%s already exists, try another one:" COLOR_RESET, name);
             gets(name);
         }
         FILE *fp = fopen("users.txt", "a");
@@ -425,7 +420,7 @@ char *username()
     {
         FILE *fp = fopen("users.txt", "r");
         char tmpname[50], coins[10];
-        printf("\tThis is the list of the usernames:\n");
+        printf("\tThis is the list of the usernames:\n\n");
         while (!feof(fp))
         {
             fscanf(fp, "%s %s", tmpname, coins);
@@ -435,7 +430,7 @@ char *username()
         gets(name);
         while (search(name) == -1)
         {
-            printf("\t%s does not exist! Try again:", name);
+            printf(COLOR_RED "\t%s does not exist! Try again:" COLOR_RESET, name);
             gets(name);
         }
         fclose(fp);
@@ -494,7 +489,7 @@ node *putships_manual(char ***map)
         getchar();
         while (x < 0 || x >= mapcol || y < 0 || y >= maprow)
         {
-            printf("Invalid input! Try again:\n");
+            printf(COLOR_RED "Invalid input! Try again:\n" COLOR_RESET);
             scanf("%d %d", &x, &y);
             getchar();
         }
@@ -505,7 +500,7 @@ node *putships_manual(char ***map)
         getchar();
         while (x < 0 || x >= mapcol || y < 0 || y >= maprow)
         {
-            printf("Invalid input! Try again:\n");
+            printf(COLOR_RED "Invalid input! Try again:\n" COLOR_RESET);
             scanf("%d %d", &x, &y);
             getchar();
         }
@@ -517,7 +512,7 @@ node *putships_manual(char ***map)
         if ((deltaX == head->info.length || deltaY == head->info.length) && (deltaX == head->info.width || deltaY == head->info.width))
             break;
         else
-            printf("\tCoordinates does not match the size of the ship!\n");
+            printf(COLOR_RED "\tCoordinates does not match the size of the ship!\n" COLOR_RESET);
     }
     head->hit = 0;
     //update the map
@@ -537,7 +532,7 @@ node *putships_manual(char ***map)
             getchar();
             while (x < 0 || x >= mapcol || y < 0 || y >= maprow)
             {
-                printf("Invalid input! Try again:\n");
+                printf(COLOR_RED "Invalid input! Try again:\n" COLOR_RESET);
                 scanf("%d %d", &x, &y);
                 getchar();
             }
@@ -548,7 +543,7 @@ node *putships_manual(char ***map)
             getchar();
             while (x < 0 || x >= mapcol || y < 0 || y >= maprow)
             {
-                printf("Invalid input! Try again:\n");
+                printf(COLOR_RED "Invalid input! Try again:\n" COLOR_RESET);
                 scanf("%d %d", &x, &y);
                 getchar();
             }
@@ -562,11 +557,11 @@ node *putships_manual(char ***map)
                 if (check_map(new->head.x, new->head.y, new->tail.x, new->tail.y, *map))
                     break;
                 else
-                    printf("\tCannot locate this ship! Try again\n");
+                    printf(COLOR_RED "\tCannot locate this ship! Try again\n" COLOR_RESET);
             }
             else
             {
-                printf("\tCoordinates does not match the size of the ship!\n");
+                printf(COLOR_RED "\tCoordinates does not match the size of the ship!\n" COLOR_RESET);
             }
         }
 
@@ -659,20 +654,6 @@ char **update_map(int x_head, int y_head, int x_tail, int y_tail, char **map)
     return map;
 }
 
-void printlist(node *head)
-{
-    node *tmp = head;
-    for (int i = 1; tmp; i++)
-    {
-        printf("ship %d\n", i);
-        printf("%dx%d\n", tmp->info.length, tmp->info.width);
-        printf("(%d,%d) (%d,%d)\n", tmp->head.x, tmp->head.y, tmp->tail.x, tmp->tail.y);
-        printf("hits: %d\n", tmp->hit);
-        tmp = tmp->next;
-    }
-    system("PAUSE");
-}
-
 bool check_map(int x_head, int y_head, int x_tail, int y_tail, char **map)
 {
     int x, y;
@@ -681,15 +662,9 @@ bool check_map(int x_head, int y_head, int x_tail, int y_tail, char **map)
         for (x = x_head; x <= x_tail; x++)
         {
             if (map[y][x] == 's')
-            {
-                //printf("\tCannot locate this ship! Try again\n");
                 return false;
-            }
             if (map[y][x] == 'w')
-            {
-                //printf("\tCannot locate this ship! Try again\n");
                 return false;
-            }
         }
     }
     return true;
@@ -708,22 +683,24 @@ void displayMap(char **map)
         {
             if (map[i][j] == 'w')
             {
-                printf(COLOR_CYAN "%c" COLOR_RESET " ", map[i][j]);
+                printf(COLOR_CYAN "%c " COLOR_RESET, map[i][j]);
             }
             else if (map[i][j] == 'e')
             {
-                printf(COLOR_YELLOW "%c" COLOR_RESET " ", map[i][j]);
+                printf(COLOR_RED "%c " COLOR_RESET, map[i][j]);
             }
             else if (map[i][j] == 'c')
             {
-                printf(COLOR_RED "%c" COLOR_RESET " ", map[i][j]);
+                printf(COLOR_GRAY "%c " COLOR_RESET, map[i][j]);
             }
             else if (map[i][j] == 's')
             {
-                printf(COLOR_GREEN "%c" COLOR_RESET " ", map[i][j]);
+                printf(COLOR_GREEN "%c " COLOR_RESET, map[i][j]);
             }
             else if (map[i][j] == 'x')
-                printf(COLOR_RED "%c" COLOR_RESET " ", map[i][j]);
+            {
+                printf(COLOR_YELLOW "%c " COLOR_RESET, map[i][j]);
+            }
             else
             {
                 printf("%c ", map[i][j]);
@@ -759,33 +736,28 @@ void battleWithFriend(char **map1, char **map2, char **map_enemy1, char **map_en
     node *curr, *prev;
     bool bonus;
     int coins1 = users[0].tmp_coins, coins2 = users[1].tmp_coins;
-
     while (head1 && head2)
     {
-        //printf("\t" COLOR_YELLOW "%s      %s", users[0].name, users[1].name);
-        //printf(COLOR_RESET "\t  %d             %d\n", coins1, coins2);
         bonus = true;
-        Sleep(1000); system("cls");
+        Sleep(1500); system("cls");
         printf("\t%s\n", users[0].name);
-        printf("\t1.Attack\n\t2.Missile attack\n\t3.Save the game\n");
+        printf("\t1.Attack\n\t2.Missile attack\n\t3.Save the game\n\t4.Exit\n");
         scanf("%d", &choice);
         if (choice == 1)
         {
             while (bonus)
             {
-                if (head1 == NULL)
-                    break;
                 system("cls");
                 printf(COLOR_YELLOW "\t%s: ", users[0].name);
                 printf(COLOR_RESET "%d\n", coins1);
                 printf(COLOR_YELLOW "\t%s: ", users[1].name);
                 printf(COLOR_RESET "%d\n", coins2);
+                printf("\t%s's map\n", users[0].name);
                 displayMap(map1);
-                printf("\n");
+                printf("\n\t%s's map\n", users[1].name);
                 displayMap(map_enemy1); //enemy's map before shooting
                 printf("\tEnter the x,y coordinates of the target\n");
                 scanf("%d %d", &x, &y);
-                system("CLS");
                 if (map_enemy1[y][x] == '.' && (map2[y][x] == '.' || map2[y][x] == 'w'))
                 {
                     map2[y][x] = 'x';
@@ -811,8 +783,8 @@ void battleWithFriend(char **map1, char **map2, char **map_enemy1, char **map_en
                     else
                     {
                         map_enemy1 = complete_explosion(map2, map_enemy1, curr);
-                        map2[y][x] = 'e';
-                        printf("Complete explosion!\n");
+                        map2 = complete_explosion(map2, map2, curr);
+                        printf(COLOR_YELLOW "\n\t\tCOMPLETE EXPLOSION!\n" COLOR_RESET);
                         //remove the ship from the linked list
                         if (curr == head2)
                             head2 = head2->next;
@@ -825,11 +797,19 @@ void battleWithFriend(char **map1, char **map2, char **map_enemy1, char **map_en
                             break;
                     }
                 }
-                else if (map2[y][x] == 'e' || map2[y][x] == 'x')
-                    printf("\tYou have already hit this target! Try again\n");
+                else if (map2[y][x] == 'e' || map2[y][x] == 'x' || map_enemy1[y][x] == 'w')
+                    printf(COLOR_RED "\tYou have already hit this target! Try again\n" COLOR_RESET);
+                Sleep(1500);
+                system("cls");
+                printf(COLOR_YELLOW "\t%s: ", users[0].name);
+                printf(COLOR_RESET "%d\n", coins1);
+                printf(COLOR_YELLOW "\t%s: ", users[1].name);
+                printf(COLOR_RESET "%d\n", coins2);
+                printf("\t%s's map\n", users[0].name);
                 displayMap(map1);
-                displayMap(map_enemy1); //show the result
-                Sleep(1000);
+                printf("\n\t%s's map\n", users[1].name);
+                displayMap(map_enemy1); //result
+                Sleep(1500);
             }
         }
         else if (choice == 2)
@@ -840,42 +820,42 @@ void battleWithFriend(char **map1, char **map2, char **map_enemy1, char **map_en
                 coins1 -= 100;        //pay 100 coins
                 displayMap(map1);
                 displayMap(map_enemy1);
-                map_enemy2 = missile_attack_new(&head1, &map1, map_enemy2, &coins2);
+                map_enemy2 = missile_attack(&head1, &map1, map_enemy2, &coins2);
                 Sleep(1000); system("cls");
                 displayMap(map1);
                 displayMap(map_enemy1);
             }
             else if (coins1 < 100)
-                printf("\tYou don't have enough coins!\n");
+                printf(COLOR_RED "\tYou don't have enough coins!\n" COLOR_RESET);
             else if (coins1 >= 100 && users[0].missile == 0)
-                printf("\tYou can't perform missile attack anymore :(\n");
+                printf(COLOR_RED "\tYou can't perform missile attack anymore :(\n" COLOR_RESET);
         }
         else if (choice == 3)
             savegame(map1, map2, map_enemy1, map_enemy2, head1, head2, false);
-
+        else if (choice == 4) return;
+        //second player's turn
         bonus = true;
-        Sleep(1000); system("cls");
+        if (head2 == NULL)
+            break;
+        Sleep(1500); system("cls");
         printf("\t%s\n", users[1].name);
-        printf("\t1.Attack\n\t2.Missile attack\n\t3.Save the game\n");
+        printf("\t1.Attack\n\t2.Missile attack\n\t3.Save the game\n\t4.Exit\n");
         scanf("%d", &choice);
         if (choice == 1)
         {
-            //displayMap(map2);
             while (bonus)
             {
-                if (head2 == NULL)
-                    break;
                 system("cls");
                 printf(COLOR_YELLOW "\t%s: ", users[0].name);
                 printf(COLOR_RESET "%d\n", coins1);
                 printf(COLOR_YELLOW "\t%s: ", users[1].name);
                 printf(COLOR_RESET "%d\n", coins2);
-                displayMap(map2); //player2's map
-                printf("\n");
+                printf("\t%s's map\n", users[1].name);
+                displayMap(map2); 
+                printf("\n\t%s's map\n", users[0].name);
                 displayMap(map_enemy2); //enemy's map before shooting
                 printf("\tEnter the x,y coordinates of the target\n");
                 scanf("%d %d", &x, &y);
-                system("cls");
                 if (map1[y][x] == '.' || map1[y][x] == 'w')
                 {
                     map1[y][x] = 'x';
@@ -900,9 +880,9 @@ void battleWithFriend(char **map1, char **map2, char **map_enemy1, char **map_en
                     }
                     else
                     {
-                        printf("Complete explosion!\n");
+                        printf(COLOR_YELLOW "\n\t\tCOMPLETE EXPLOSION!\n" COLOR_RESET);
                         map_enemy2 = complete_explosion(map1, map_enemy2, curr);
-                        map1[y][x] = 'e';
+                        map1 = complete_explosion(map1, map1, curr);
                         //unlink the current ship from the linked list
                         if (curr == head1)
                             head1 = head1->next;
@@ -915,11 +895,19 @@ void battleWithFriend(char **map1, char **map2, char **map_enemy1, char **map_en
                             break;
                     }
                 }
-                else if (map1[y][x] == 'e' || map1[y][x] == 'x')
-                    printf("\tYou have already hit this target! Try again\n");
+                else if (map1[y][x] == 'e' || map1[y][x] == 'x' || map_enemy2[y][x] == 'w')
+                    printf(COLOR_RED "\tYou have already hit this target! Try again\n" COLOR_RESET);
+                Sleep(1500);
+                system("cls");
+                printf(COLOR_YELLOW "\t%s: ", users[0].name);
+                printf(COLOR_RESET "%d\n", coins1);
+                printf(COLOR_YELLOW "\t%s: ", users[1].name);
+                printf(COLOR_RESET "%d\n", coins2);
+                printf("\t%s's map\n", users[1].name);
                 displayMap(map2);
-                displayMap(map_enemy2); //show the result
-                Sleep(1000);
+                printf("\n\t%s's map\n", users[0].name);
+                displayMap(map_enemy2); //enemy's map before shooting
+                Sleep(1500);
             }
         }
         else if (choice == 2)
@@ -930,18 +918,19 @@ void battleWithFriend(char **map1, char **map2, char **map_enemy1, char **map_en
                 coins2 -= 100;        //pay 100 coins
                 displayMap(map2);
                 displayMap(map_enemy2);
-                map_enemy2 = missile_attack_new(&head1, &map1, map_enemy2, &coins2);
+                map_enemy2 = missile_attack(&head1, &map1, map_enemy2, &coins2);
                 Sleep(1000); system("cls");
                 displayMap(map2);
                 displayMap(map_enemy2);
             }
             else if (coins2 < 100)
-                printf("\tYou don't have enough coins!\n");
+                printf(COLOR_RED "\tYou don't have enough coins!\n" COLOR_RESET);
             else if (coins2 >= 100 && users[1].missile == 0)
-                printf("\tYou can't perform missile attack anymore :(\n");
+                printf(COLOR_RED "\tYou can't perform missile attack anymore :(\n" COLOR_RESET);
         }
         else if (choice == 3)
             savegame(map1, map2, map_enemy1, map_enemy2, head1, head2, false);
+        else if (choice == 4) return;
     }
     //end of the game
     if (head1 == NULL && head2 != NULL)
@@ -963,6 +952,9 @@ void battleWithFriend(char **map1, char **map2, char **map_enemy1, char **map_en
         users[0].coins += coins1;
     }
     savescores();
+    printf("\tYou will be forwarded back to the menu...\n");
+    Sleep(1000);
+    system("cls");
 }
 
 void battleWithBot(char **map1, char **map2, char **map_enemy1, char **map_enemy2, node *head1, node *head2)
@@ -977,31 +969,31 @@ void battleWithBot(char **map1, char **map2, char **map_enemy1, char **map_enemy
     node *curr, *prev;
     bool bonus;
     int coins1 = users[0].tmp_coins, coins2 = users[1].tmp_coins;
+
     while (head1 && head2)
     {
         bonus = true;
         Sleep(1000);
         system("cls");
         printf("\t%s\n", users[0].name);
-        printf("\t1.Attack\n\t2.Missile attack\n\t3.Save the game\n");
+        printf("\t1.Attack\n\t2.Missile attack\n\t3.Save the game\n\t4.Exit\n");
         scanf("%d", &choice);
         if (choice == 1)
         {
             while (bonus)
             {
-                if (head1 == NULL)
-                    break;
                 system("cls");
                 printf(COLOR_YELLOW "\t%s: ", users[0].name);
                 printf(COLOR_RESET "%d\n", coins1);
                 printf(COLOR_YELLOW "\tBot: ");
                 printf(COLOR_RESET "%d\n", coins2);
+
+                printf("\n\t%s's map\n", users[0].name);
                 displayMap(map1);
-                printf("\n");
+                printf("\n\tBot's map\n");
                 displayMap(map_enemy1); //enemy's map before shooting
                 printf("\tEnter the x,y coordinates of the target\n");
                 scanf("%d %d", &x, &y);
-                system("CLS");
                 if (map_enemy1[y][x] == '.' && (map2[y][x] == '.' || map2[y][x] == 'w'))
                 {
                     map2[y][x] = 'x';
@@ -1028,7 +1020,7 @@ void battleWithBot(char **map1, char **map2, char **map_enemy1, char **map_enemy
                     {
                         map_enemy1 = complete_explosion(map2, map_enemy1, curr);
                         map2[y][x] = 'e';
-                        printf("Complete explosion!\n");
+                        printf(COLOR_YELLOW "\n\t\tCOMPLETE EXPLOSION!\n" COLOR_RESET);
                         //remove the ship from the linked list
                         if (curr == head2)
                             head2 = head2->next;
@@ -1041,11 +1033,19 @@ void battleWithBot(char **map1, char **map2, char **map_enemy1, char **map_enemy
                             break;
                     }
                 }
-                else if (map2[y][x] == 'e' || map2[y][x] == 'x')
-                    printf("\tYou have already hit this target! Try again\n");
+                else if (map2[y][x] == 'e' || map2[y][x] == 'x' || map_enemy1[y][x] == 'w')
+                    printf(COLOR_RED "\tYou have already hit this target! Try again\n" COLOR_RESET);
+                Sleep(1500);
+                system("cls");
+                printf(COLOR_YELLOW "\t%s: ", users[0].name);
+                printf(COLOR_RESET "%d\n", coins1);
+                printf(COLOR_YELLOW "\tBot: ");
+                printf(COLOR_RESET "%d\n", coins2);
+                printf("\n\t%s's map\n", users[0].name);
                 displayMap(map1);
-                displayMap(map_enemy1); //show the result
-                Sleep(1000);
+                printf("\n\tBot's map\n");
+                displayMap(map_enemy1); //result
+                Sleep(1500);
             }
         }
         else if (choice == 2)
@@ -1056,32 +1056,36 @@ void battleWithBot(char **map1, char **map2, char **map_enemy1, char **map_enemy
                 coins1 -= 100;        //pay 100 coins
                 displayMap(map1);
                 displayMap(map_enemy1);
-                missile_attack(&head2, &map2, &map_enemy1, &coins1);
+                map_enemy1 = missile_attack(&head2, &map2, map_enemy1, &coins1);
             }
             else if (coins1 < 100)
-                printf("\tYou don't have enough coins!\n");
+                printf(COLOR_RED "\tYou don't have enough coins!\n" COLOR_RESET);
             else if (coins1 >= 100 && users[0].missile == 0)
-                printf("\tYou can't perform missile attack anymore :(\n");
+                printf(COLOR_RED "\tYou can't perform missile attack anymore :(\n" COLOR_RESET);
         }
         else if (choice == 3) 
             savegame(map1, map2, map_enemy1, map_enemy2, head1, head2, true);
+        else if (choice == 4)
+        {
+            system("cls");
+            return;
+        } 
         //bot's turn
         bonus = true;
+        if (head2 == NULL)
+            break;
         x = rand() % 10;
         y = rand() % 10;
         while (bonus)
         {
-            if (head1 == NULL)
-                break;
             system("cls");
-            if (map1[y][x] == 'e' || map1[y][x] == 'x')
-            {                 //the target has already been hit
+            while (map1[y][x] == 'e' || map1[y][x] == 'x' || map_enemy2[y][x] == 'w')
+            { //the target has already been hit
                 bonus = true; //the bot can try again so it stays in the loop
                 x = rand() % mapcol;
                 y = rand() % maprow;
-                continue;
             }
-            else if (map_enemy2[y][x] == '.' && (map1[y][x] == '.' || map1[y][x] == 'w'))
+            if (map_enemy2[y][x] == '.' && (map1[y][x] == '.' || map1[y][x] == 'w'))
             { //the target is the ocean
                 map1[y][x] = 'x';
                 map_enemy2[y][x] = 'w';
@@ -1109,43 +1113,74 @@ void battleWithBot(char **map1, char **map2, char **map_enemy1, char **map_enemy
                         y = rand() % maprow;
                     }
                     else if (difficulty == 2)
-                    {                       //the bot chooses either the column of the last taget or the row to have a better chance to hit a ship
-                        int r = rand() % 2; //randomly chooses vertical or horizontal (sth like missile attack)
-                        while (r != 2)
+                    { 
+                        bool found = false;
+                        while (1)
                         {
-                            if (r == 0)
+                            for (int i = 1;; i++)
                             {
-                                for (int i = 0; i < mapcol; i++)
+                                if (x + i >= mapcol)
+                                    break;
+                                if (map1[y][x + i] == 's')
                                 {
-                                    if (map1[y][i] == '.')
-                                    { //the first occurance of a dot
-                                        x = i;
-                                        r = 2;
-                                        break;
-                                    }
-                                    r = 1;
+                                    x += i;
+                                    found = true;
+                                    break;
                                 }
+                                if (map1[y][x + i] == 'w')
+                                    break;
                             }
-                            else
+                            if (found) break;
+                            for (int i = 1; ; i++)
                             {
-                                for (int i = 0; i < maprow; i++)
+                                if (x - i < 0)
+                                    break;
+                                if (map1[y][x - i] == 's')
                                 {
-                                    if (map1[i][x] == '.')
-                                    {
-                                        y = i;
-                                        r = 2;
-                                        break;
-                                    }
-                                    r = 0;
+                                    x -= i;
+                                    found = true;
+                                    break;
                                 }
+                                if (map1[y][x - i] == 'w') 
+                                    break;
                             }
+                            if (found) break;
+                            for (int i = 1; ; i++)
+                            {
+                                if (y + i > maprow)
+                                    break;
+                                if (map1[y + i][x] == 's')
+                                {
+                                    y += i;
+                                    found  = true;
+                                    break;
+                                }
+                                if (map1[y + i][x] == 'w')
+                                    break;
+                            }
+                            if (found) break;
+                            for (int i = 1; ; i++)
+                            {
+                                if (y - i < 0)
+                                   break;
+                                if (map1[y - i][x] == 's')
+                                {
+                                    y -= i;
+                                    found = true;
+                                    break;
+                                }
+                                if (map1[y - i][x] == 'w')
+                                    break;
+                            }
+                            if (found) break;
                         }
                     }
                 }
                 else
                 {
                     map_enemy2 = complete_explosion(map1, map_enemy2, curr);
-                    map1[y][x] = 'e';
+                    map1 = complete_explosion(map1, map1, curr);
+                    printf(COLOR_YELLOW "\n\t\tCOMPLETE EXPLOSION!\n" COLOR_RESET);
                     //unlink the ship from the linked list
                     if (curr == head1)
                         head1 = head1->next;
@@ -1161,9 +1196,18 @@ void battleWithBot(char **map1, char **map2, char **map_enemy1, char **map_enemy
                     y = rand() % maprow;
                 }
             }
+             
+            Sleep(1500);
+            system("cls");
+            printf(COLOR_YELLOW "\t%s: ", users[0].name);
+            printf(COLOR_RESET "%d\n", coins1);
+            printf(COLOR_YELLOW "\tBot: ");
+            printf(COLOR_RESET "%d\n", coins2);
+            printf("\n\t%s's map\n", users[0].name);
             displayMap(map1);
-            displayMap(map_enemy1); //show the result
-            Sleep(2000);
+            printf("\n\tBot's map\n");
+            displayMap(map_enemy1); //result
+            Sleep(1500);
         }
     }
     //end of the game
@@ -1183,92 +1227,12 @@ void battleWithBot(char **map1, char **map2, char **map_enemy1, char **map_enemy
         users[0].coins += coins1;
     }
     savescores();
-}
-//incorrect
-void missile_attack(node **head, char ***map, char ***map_enemy, int *coins)
-{
-    //get data
-    char direction;
-    int point;
-    printf("\tEnter the direction in which you like to shoot:\n");
-    printf("\tEnter V for vertical or H for horizontal\n");
-    printf("\tEnter the column/row in which you like to shoot:\n");
-    scanf("%c%d", &direction, &point); 
-    getchar();
-
-    int x, y;
-    if (direction == 'V' || direction == 'v')
-    {
-        for (x = point, y = 0; *map[y][x] == 'w'; y++)
-            *map_enemy[y][x] = 'w';
-        if (*map[y][x] == 's' || *map[y][x] == 'e')
-        {
-            node *curr = *head, *prev;
-            while (x < curr->head.x || x > curr->tail.x || y < curr->head.y || y > curr->tail.y)
-            {
-                prev = curr;
-                curr = curr->next;
-            }
-            if (curr->hit == curr->info.length * curr->info.width - 1)
-            { //if the target point is the last point of an exploded ship
-                printf("Complete explosion!\n");
-                *map_enemy = complete_explosion(*map, *map_enemy, curr);
-                //unlink the current ship from the linked list
-                if (curr == *head)
-                    *head = (*head)->next;
-                else
-                    prev->next = curr->next;
-                int destroyed_ship_area = curr->info.length * curr->info.width;
-                int score = 5 * largest_ship_area / destroyed_ship_area;
-                *coins += score;
-            }
-            else
-            {
-                *map[y][x] = 'e';
-                *map_enemy[y][x] = 'e';
-                *coins++;
-                curr->hit++;
-            }
-        }
-    }
-    else if (direction == 'H' || direction == 'h')
-    { //horizontal
-        for (y = point, x = 0; *map[y][x] == 'w'; x++)
-            *map_enemy[y][x] = 'w';
-        if (*map[y][x] == 's' || *map[y][x] == 'e')
-        {
-            //check if you have the right to delete the target ship from the linked list
-            node *curr = *head, *prev;
-            while (x < curr->head.x || x > curr->tail.x || y < curr->head.y || y > curr->tail.y)
-            {
-                prev = curr;
-                curr = curr->next;
-            }
-            if (curr->hit == curr->info.length * curr->info.width - 1)
-            { //if the target point is the last point of an exploded ship
-                printf("Complete explosion!\n");
-                *map_enemy = complete_explosion(*map, *map_enemy, curr);
-                //unlink the current ship from the linked list
-                if (curr == *head)
-                    *head = (*head)->next;
-                else
-                    prev->next = curr->next;
-                int destroyed_ship_area = curr->info.length * curr->info.width;
-                int score = 5 * largest_ship_area / destroyed_ship_area;
-                *coins += score;
-            }
-            else
-            {
-                *map[y][x] = 'e';
-                *map_enemy[y][x] = 'e';
-                *coins++;
-                curr->hit++;
-            }
-        }
-    }
+    printf("\tYou will be forwarded back to the menu...\n");
+    Sleep(1000); 
+    system("cls");
 }
 
-char** missile_attack_new(node **head, char ***map, char **map_enemy, int *coins)
+char** missile_attack(node **head, char ***map, char **map_enemy, int *coins)
 {
     char **new_map = *map;
     //get data
@@ -1276,9 +1240,9 @@ char** missile_attack_new(node **head, char ***map, char **map_enemy, int *coins
     int point;
     printf("\tEnter the direction in which you like to shoot:\n");
     printf("\tEnter V for vertical or H for horizontal\n");
+    scanf("%c", &direction);
     printf("\tEnter the column/row in which you like to shoot:\n");
-    printf("\tExample:  V5\n");
-    scanf("%c%d", &direction, &point);
+    scanf("%d", &point);
     getchar();
 
     int x, y;
@@ -1331,7 +1295,7 @@ char** missile_attack_new(node **head, char ***map, char **map_enemy, int *coins
             }
             if (curr->hit == curr->info.length * curr->info.width - 1)
             { //if the target point is the last point of an exploded ship
-                printf("Complete explosion!\n");
+                printf(COLOR_YELLOW "\tComplete explosion!\n" COLOR_RESET);
                 map_enemy = complete_explosion(new_map, map_enemy, curr);
                 //unlink the current ship from the linked list
                 if (curr == *head)
@@ -1359,10 +1323,12 @@ void savescores()
 {
     //better way is to realloc "all" everytime u wanna read smth into it:)
     int i, coin;
-    User all[500];
+    //User all[500];
+    User *all = (User *)malloc(sizeof(User));
     FILE *fpin = fopen("users.txt", "r");
     for (i = 0; !feof(fpin); i++)
     {
+        all = (User*)realloc(all, (i + 1) * sizeof(User));
         fscanf(fpin, "%s %s", &all[i].name, &all[i].str_coins);
         if (strcmp(all[i].name, users[0].name) == 0)
             sprintf(all[i].str_coins, "%d", users[0].coins);
@@ -1455,7 +1421,7 @@ void loadSavedGame (char **map1, char **map2, char **map_enemy1, char **map_enem
     FILE *fp = fopen(title, "rb");
     if (fp == NULL)
     {
-        printf("There's no game saved with that title!\n");
+        printf(COLOR_RED "There's no game saved with that title!\n" COLOR_RESET);
         return;
     }
     fread(&mode, sizeof(int), 1, fp);
